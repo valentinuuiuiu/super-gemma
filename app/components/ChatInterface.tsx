@@ -16,7 +16,7 @@ export function ChatInterface({ onArtifact }: { onArtifact: (artifact: Artifact)
     {
       id: 'init',
       role: 'assistant',
-      content: "I am SuperGemma. I can analyze repositories, plan deployments, and optimize your agentic workflows. Paste a GitHub URL or ask a question.",
+      content: "I am SuperGemma (powered by Gemma 3 27B). I can analyze repositories, plan deployments, and optimize your agentic workflows. Paste a GitHub URL or ask a question.",
     }
   ]);
   const [input, setInput] = useState('');
@@ -40,56 +40,120 @@ export function ChatInterface({ onArtifact }: { onArtifact: (artifact: Artifact)
     setInput('');
     setIsProcessing(true);
 
-    // Simulation of "Super Gemma" Agent Logic
     const responseId = (Date.now() + 1).toString();
 
-    // Initial thinking state
+    // Initial placeholder for assistant response
     setMessages(prev => [...prev, {
       id: responseId,
       role: 'assistant',
       content: '',
       isThinking: true,
-      thoughts: ['Analyzing intent...', 'Scanning knowledge base...']
+      thoughts: []
     }]);
 
-    // Simulate thinking steps based on input
-    const isRepo = input.includes('github.com');
-    const thoughtSequence = isRepo
-        ? ['Identifying repository structure...', 'Cloning metadata...', 'Analyzing dependencies...', 'Checking for Dockerfile...', 'Generating deployment matrix...']
-        : ['Parsing query semantic...', 'Retrieving context from active session...', 'Formulating response...'];
-
-    let currentThoughts = [...thoughtSequence.slice(0, 2)];
-
-    // Step-by-step update
-    for (let i = 2; i <= thoughtSequence.length; i++) {
-        await new Promise(r => setTimeout(r, 800));
-        currentThoughts = thoughtSequence.slice(0, i);
-        setMessages(prev => prev.map(m => m.id === responseId ? { ...m, thoughts: currentThoughts } : m));
-    }
-
-    await new Promise(r => setTimeout(r, 500));
-
-    // Final response generation
-    let finalContent = "";
-    if (isRepo) {
-        finalContent = `I've analyzed the repository. It appears to be a robust application. I've prepared a deployment plan and identified the stack. Check the artifact panel for details.`;
-        onArtifact({
-            title: 'Analysis: ' + input.split('/').pop(),
-            type: 'analysis',
-            status: 'success',
-            content: { health: 92 }
+    try {
+        const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                messages: messages.concat(userMsg).map(m => ({ role: m.role, content: m.content }))
+            })
         });
-    } else {
-        finalContent = "I understand. I can help you with that. My architecture is designed to handle complex agentic workflows. How would you like to proceed?";
+
+        if (!response.ok) {
+             throw new Error('Failed to communicate with Agent API');
+        }
+
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error('No stream reader');
+
+        let rawBuffer = '';
+        let currentThoughts: string[] = [];
+        let currentContent = '';
+
+        // This simple parser handles the stream and splits tags.
+        // Note: Real parsing of partial XML tags across chunks is complex,
+        // but for this demo we accumulate buffer and regex match.
+
+        const decoder = new TextDecoder();
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+            rawBuffer += chunk;
+
+            // Extract Thinking
+            const thoughtMatch = rawBuffer.match(/<thinking>([\s\S]*?)<\/thinking>/g);
+            if (thoughtMatch) {
+                // Get all complete thoughts
+                currentThoughts = thoughtMatch.map(t => t.replace(/<\/?thinking>/g, '').trim());
+            } else {
+                // Handle open thinking tag (streaming in progress thought)
+                 const openThought = rawBuffer.match(/<thinking>([\s\S]*?)$/);
+                 if (openThought) {
+                     // Show the current partial thought as the last item
+                     const partial = openThought[1].trim();
+                     if (partial) {
+                         // We display the partial thought at the end of the array
+                         // But we don't want to duplicate completed ones, so we handle logic carefully
+                         // For simplicity, we just display what we have fully parsed + current tail if needed
+                         // Let's rely on completed blocks for the list, and maybe a "..." for active
+                     }
+                 }
+            }
+
+            // Extract Artifacts
+            const artifactMatch = rawBuffer.match(/<artifact\s+title="([^"]+)"\s+type="([^"]+)">([\s\S]*?)<\/artifact>/);
+            if (artifactMatch) {
+                 const [, title, type, content] = artifactMatch;
+                 onArtifact({
+                     title,
+                     type: type as 'code' | 'deployment' | 'analysis',
+                     content,
+                     status: 'success'
+                 });
+                 // Remove artifact from displayed content to keep chat clean?
+                 // Or keep it. Let's remove it from the "content" we show in chat bubbles if desired.
+                 // For now, we'll strip it from the rawBuffer used for content display.
+            }
+
+            // Clean Content for display (Remove tags)
+            // We want to show everything NOT inside <thinking> or <artifact> tags
+            // This is a naive regex replacement for the stream update
+            const cleanText = rawBuffer
+                .replace(/<thinking>[\s\S]*?<\/thinking>/g, '') // Remove completed thoughts
+                .replace(/<thinking>[\s\S]*/g, '') // Remove active thought
+                .replace(/<artifact[\s\S]*?<\/artifact>/g, '') // Remove artifacts
+                .replace(/<artifact[\s\S]*/g, ''); // Remove active artifact
+
+            currentContent = cleanText.trim();
+
+            setMessages(prev => prev.map(m => m.id === responseId ? {
+                ...m,
+                content: currentContent,
+                thoughts: currentThoughts.length > 0 ? currentThoughts : m.thoughts,
+                isThinking: true // Still thinking until done
+            } : m));
+        }
+
+        // Finalize
+         setMessages(prev => prev.map(m => m.id === responseId ? {
+            ...m,
+            isThinking: false
+        } : m));
+
+    } catch (error) {
+        console.error(error);
+        setMessages(prev => prev.map(m => m.id === responseId ? {
+            ...m,
+            content: "I encountered an error connecting to the neural core. Please check your connection or API keys.",
+            isThinking: false
+        } : m));
+    } finally {
+        setIsProcessing(false);
     }
-
-    setMessages(prev => prev.map(m => m.id === responseId ? {
-        ...m,
-        content: finalContent,
-        isThinking: false
-    } : m));
-
-    setIsProcessing(false);
   };
 
   return (
@@ -105,7 +169,7 @@ export function ChatInterface({ onArtifact }: { onArtifact: (artifact: Artifact)
                      </div>
                      <div className="flex-1">
                         <div className="font-semibold text-white/90 text-sm mb-1">SuperGemma</div>
-                        {msg.thoughts && <ThoughtProcess isThinking={!!msg.isThinking} steps={msg.thoughts} />}
+                        {msg.thoughts && msg.thoughts.length > 0 && <ThoughtProcess isThinking={!!msg.isThinking} steps={msg.thoughts} />}
                         {msg.content && (
                             <div className="text-white/80 leading-relaxed whitespace-pre-wrap animate-in fade-in duration-500">
                                 {msg.content}
