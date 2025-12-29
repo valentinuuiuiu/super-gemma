@@ -22,21 +22,26 @@ const TEMPLATES = {
     time: '1 day',
     price: '$997'
   }
-};
+} as const; // Add const assertion for literal types
+
+type TemplateKey = keyof typeof TEMPLATES;
 
 export async function POST(request: NextRequest) {
   const { template } = await request.json();
   
-  if (!TEMPLATES[template]) {
+  // Type guard
+  if (!template || !(template in TEMPLATES)) {
     return NextResponse.json({ error: 'Invalid template' }, { status: 400 });
   }
   
+  const templateKey = template as TemplateKey;
+
   // Generate invoice / deployment URL / etc
   const invoiceId = `SG-${Date.now()}`;
   
   return NextResponse.json({
     success: true,
-    template: TEMPLATES[template],
+    template: TEMPLATES[templateKey],
     next_steps: [
       '1. Stripe checkout',
       '2. Repo cloned + deployed',
