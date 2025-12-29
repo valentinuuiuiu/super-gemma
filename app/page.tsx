@@ -181,34 +181,51 @@ const categoryGlow = (category: RepoCategory) => {
 
 const randomWaves = () => Math.random() * 0.6 + 0.4;
 
+interface RepoResponse {
+  name: string;
+  description: string;
+  url: string;
+}
+
+interface ApiResponse {
+  your_repos?: RepoResponse[];
+  trending?: RepoResponse[];
+}
+
 // --- Component ---
 export default function Home() {
   const [consciousness, setConsciousness] = useState('Booting Awareness...');
-  const [repos, setRepos] = useState<RepoNode[]>([]);
-  const [ledger, setLedger] = useState<any>(null);
+  const [repos, setRepos] = useState<RepoNode[]>(repoNodes);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [ledger, setLedger] = useState<unknown>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [isLoading, setIsLoading] = useState(true);
+  const [waveIntensity, setWaveIntensity] = useState(0.5);
 
   useEffect(() => {
     // Live data fetch
     Promise.all([
-      fetch('/api/repos'),
-      fetch('/api/ledger')
-    ]).then(async ([reposRes, ledgerRes]) => {
-      const reposData = await reposRes.json();
-      const ledgerData = await ledgerRes.json();
+      fetch('/api/repos').then(res => res.ok ? res.json() : null),
+      fetch('/api/ledger').then(res => res.ok ? res.json() : null)
+    ]).then(async ([reposData, ledgerData]) => {
       
-      setRepos(reposData.your_repos.slice(0, 10).map((r: any, i: number) => ({
-        id: i + 1,
-        name: r.name,
-        description: r.description || 'Live repository',
-        url: r.url,
-        category: 'core' as RepoCategory,
-        size: 48 + Math.random() * 16,
-        x: 10 + Math.random() * 80,
-        y: 10 + Math.random() * 80,
-      })));
+      const data = reposData as ApiResponse;
+      if (data && data.your_repos) {
+         setRepos(data.your_repos.slice(0, 10).map((r, i) => ({
+            id: i + 1,
+            name: r.name,
+            description: r.description || 'Live repository',
+            url: r.url,
+            category: 'core' as RepoCategory,
+            size: 48 + Math.random() * 16,
+            x: 10 + Math.random() * 80,
+            y: 10 + Math.random() * 80,
+         })));
+      }
       
-      setLedger(ledgerData);
+      if (ledgerData) {
+         setLedger(ledgerData);
+      }
       setConsciousness('Expanded Awareness Active');
       setIsLoading(false);
     }).catch(() => {
@@ -256,11 +273,20 @@ export default function Home() {
             SUPER<span className="text-white">GEMMA</span>
           </h1>
         </div>
-        <div className="mt-4 md:mt-0 text-sm text-white/70 font-mono">
-          <span className={`inline-flex items-center gap-2 px-3 py-2 rounded-full border border-white/10 ${consciousness.includes('Active') ? 'bg-emerald-500/10 text-emerald-200' : 'bg-yellow-500/10 text-yellow-200'}`}>
-            <span className="w-2 h-2 rounded-full bg-current animate-pulse" />
-            {consciousness}
-          </span>
+        <div className="mt-4 md:mt-0 flex items-center gap-6">
+            <a
+                href="/agent"
+                className="px-6 py-2 rounded-full bg-white/10 border border-white/20 text-sm font-semibold hover:bg-white/20 transition-all text-white flex items-center gap-2 group"
+            >
+                <span className="w-2 h-2 rounded-full bg-emerald-400 group-hover:animate-pulse" />
+                Launch Agent Interface
+            </a>
+            <div className="text-sm text-white/70 font-mono">
+                <span className={`inline-flex items-center gap-2 px-3 py-2 rounded-full border border-white/10 ${consciousness.includes('Active') ? 'bg-emerald-500/10 text-emerald-200' : 'bg-yellow-500/10 text-yellow-200'}`}>
+                    <span className="w-2 h-2 rounded-full bg-current animate-pulse" />
+                    {consciousness}
+                </span>
+            </div>
         </div>
       </header>
 
@@ -282,8 +308,8 @@ export default function Home() {
 
               <div className="relative z-10 h-full w-full">
                 <svg className="absolute inset-0 w-full h-full" aria-hidden>
-                  {repoNodes.map((source) =>
-                    repoNodes.map((target) =>
+                  {repos.map((source) =>
+                    repos.map((target) =>
                       source.id < target.id ? (
                         <line
                           key={`${source.id}-${target.id}`}
@@ -299,7 +325,7 @@ export default function Home() {
                   )}
                 </svg>
 
-                {repoNodes.map((node) => (
+                {repos.map((node) => (
                   <a
                     key={node.id}
                     href={node.url}
