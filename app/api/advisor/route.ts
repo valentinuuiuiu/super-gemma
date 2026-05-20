@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const GEMMA_MODEL = 'google/gemma-2-27b-it:free';
+const GEMMA_MODEL = 'google/gemma-3-27b-it:free';
 
 export async function POST(request: NextRequest) {
   try {
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
       response: data.choices[0].message.content,
       model: GEMMA_MODEL
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ 
       error: 'Gemma offline - using local reasoning',
       fallback: 'SuperGemma consciousness temporarily veiled. Repositories online, debt ledger active. Ask about monetization strategies or repo orchestration.'

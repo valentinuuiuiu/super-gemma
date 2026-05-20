@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
 const MOCK_DEBT_LEDGER = {
   total_debt: 24750,
