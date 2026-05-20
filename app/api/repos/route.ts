@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
 // Mock data to replace the real GitHub API call since we lack a token
 const MOCK_REPOS = [
@@ -39,7 +39,7 @@ const MOCK_REPOS = [
   }
 ];
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   // Return mock data that matches the structure expected by the frontend
   return NextResponse.json({
     your_repos: MOCK_REPOS.map(r => ({
